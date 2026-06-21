@@ -28,16 +28,17 @@ from datetime import datetime, timezone
 
 from skopt import Optimizer 
 from skopt.space import Real, Integer
+from skopt.utils import use_named_args
 
 import csv
 
 
-LOG = '/home/kit/LakeResearch/Palace/HighCapLowGeoInductDesigns/BayseanOpt/optlog.csv'
-CHECKPOINT = '/home/kit/LakeResearch/Palace/HighCapLowGeoInductDesigns/BayseanOpt/optimizer.pkl'
+LOG = '/home/kit/LakeResearch/Palace/HighCapLowGeoInductDesigns/BayseanOpt/optlog2.csv'
+CHECKPOINT = '/home/kit/LakeResearch/Palace/HighCapLowGeoInductDesigns/BayseanOpt/optimizer2.pkl'
 
 SPACE = [
     Real(100, 310, name = "res_width"),
-    Real(100, 310, name = "finger_length"),
+    Real(0.925, 0.95, name = "finger_length"),
     Integer(0, 150, name = "fingers_n"),
     Real(2, 6, name = "finger_width"),
     Real(2, 3, name = "finger_gap"),
@@ -45,7 +46,7 @@ SPACE = [
     Real(1, 10, name = "geo_ind_thick"),
     Real(10, 80, name = "metal_width"),
     Real(400, 700, name = "res_height"),
-    Real(300, 650, name ="cap_section_height"), 
+    Real(.50, .95, name ="cap_section_height"), 
     Real(25, 30, name = 'gap')
 ]
 
@@ -61,9 +62,12 @@ def run_simulation(params):
     design.chips.main.size.center_x = '0um'
     design.chips.main.size.center_y = f"-{params['res_height']/2}um"
 
+    finger_length = params['res_width']*params['finger_length']
+    cap_section = params['res_height']*params['cap_section_height']
+
     res = HCresonator(design=design, name = 'hcres1', options = Dict(
         res_width = f"{params['res_width']}um", 
-        finger_length = f"{params['finger_length']}um",
+        finger_length = f"{finger_length}um",
         fingers_n = f'{int(params["fingers_n"])}',
         finger_width = f"{params['finger_width']}um", 
         finger_gap = f"{params['finger_gap']}um",
@@ -71,7 +75,7 @@ def run_simulation(params):
         geo_ind_thick = f"{params['geo_ind_thick']}um",
         metal_width = f"{params['metal_width']}um", 
         res_height = f"{params['res_height']}um",
-        cap_section_height = f"{params['cap_section_height']}um", 
+        cap_section_height = f"{cap_section}um", 
         layer = '1', 
         gap = f"{params['gap']}um"
     ))
@@ -87,7 +91,7 @@ def run_simulation(params):
                     "solver_tol": 1.0e-6,                              #error residual tolerance foriterative solver
                     "solver_maxits": 200,                              #number of solver iterations
                     "fillet_resolution":4,                            #number of vertices per quarter turn on a filleted path
-                    "palace_dir":"~/LakeResearch/Palace/build/bin/palace",#"PATH/TO/PALACE/BINARY",
+                    "palace_dir":"/home/kit/LakeResearch/spack/opt/spack/linux-zen2/palace-0.16.0-wgbpotasywp5r4tlfnmsot2usv33y23t/bin/palace",#"PATH/TO/PALACE/BINARY",
                     "num_cpus": 1  ,                                  #number of cpus to use in the simulation
                     
                     }
@@ -186,7 +190,7 @@ def run_simulation(params):
     flux_ex = B*area 
 
     x_sweep = np.linspace(-float(params['geo_ind_length']/2)*1e-6, float(params['geo_ind_length']/2)*1e-6, 100)
-    y_sweep = np.linspace(-float(params['res_height'] + params['geo_ind_thick'] + 1)*1e-6, -float(params['res_height'] + params['geo_ind_thick'])*1e-6, 100)
+    y_sweep = np.linspace(float(-params['res_height'] + params['geo_ind_thick'] + 1)*1e-6, float(-params['res_height'] + params['geo_ind_thick'])*1e-6, 100)
     z_sweep = 0
 
 
@@ -209,7 +213,7 @@ def run_simulation(params):
                                          'L_geo': L_geo, 'L_kin': L_kin }
 
 def objective(coupling, freq, Z, lambda_f: float = 0.5, lambda_z: float = 0.5): 
-    return coupling*1e-3 - lambda_f *( (freq - 9*1e9)/(9e9) )**2 - lambda_z * ((Z - 50) / 50) **2
+    return coupling*1e-3 - lambda_f *( (freq - 9*1e9)/(20e9) )**2 - lambda_z * ((Z - 50) / 200) **2
 
 def load_create_optimizer(): 
     if os.path.exists(CHECKPOINT):
@@ -221,7 +225,7 @@ def load_create_optimizer():
         dimensions = SPACE, 
         base_estimator = 'GP', 
         acq_func = "EI",
-        n_initial_points = 10, 
+        n_initial_points = 25, 
         random_state = 22
     )
 
